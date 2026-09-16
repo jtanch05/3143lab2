@@ -1,0 +1,13 @@
+
+Open MPI Prime Search
+n: 100000000
+MPI processes: 2
+Prime numbers found: 5761455
+Process 0 computation time: 4.894800 seconds
+Process 1 computation time: 7.588315 seconds
+Preparation time (max process): 0.000085 seconds
+Parallel computation time (max process): 7.588315 seconds
+MPI communication time (broadcast + gather + gatherv, max process): 2.697384 seconds
+Sorting and output time: 0.708109 seconds
+Overall time (including MPI communication, sorting and output): 8.300393 seconds
+Primes written to task1_block_primelist.txt

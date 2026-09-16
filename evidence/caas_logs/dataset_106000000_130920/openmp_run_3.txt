@@ -1,0 +1,5 @@
+Enter n: Enter number of threads: Primes written to task3_primelist.txt
+Prime numbers found: 6086767
+Threads used: 4
+Computation time: 3.480465 seconds
+Total time (including output): 4.050393 seconds

@@ -1,0 +1,4 @@
+Enter n: Primes written to task1_primelist.txt
+Prime numbers found: 6357241
+Computation time: 14.390238 seconds
+Total time (including output): 14.891854 seconds

@@ -1,0 +1,18 @@
+
+Hybrid Open MPI + OpenMP Prime Search
+n: 128000000
+MPI processes: 4
+OpenMP threads per process: 4
+Total worker threads: 16
+Prime numbers found: 7271035
+Process 0 computation time: 1.162542 seconds
+Process 1 computation time: 1.296961 seconds
+Process 2 computation time: 1.307783 seconds
+Process 3 computation time: 1.167959 seconds
+Preparation time (max process): 0.003678 seconds
+Parallel computation time (max process): 1.307783 seconds
+Local result collection time (max process): 0.031651 seconds
+MPI communication time (broadcast + gather + gatherv, max process): 0.143653 seconds
+Sorting and output time: 1.160731 seconds
+Overall time (including MPI communication, sorting and output): 2.500805 seconds
+Primes written to task2_primelist.txt
