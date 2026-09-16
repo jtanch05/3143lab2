@@ -1,0 +1,17 @@
+# Local build outputs
+*.o
+*.out
+*.exe
+task1
+task2
+task1_block
+task2_static
+
+# Local/editor/runtime files
+.vscode/
+__pycache__/
+*.pyc
+
+# Large benchmark output directories
+logs/
+prime_outputs/

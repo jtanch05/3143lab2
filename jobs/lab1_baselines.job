@@ -1,0 +1,56 @@
+#!/bin/bash
+#SBATCH --job-name=lab1_baselines
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=defq
+
+# Usage: sbatch lab1_baselines.job [n] [repetitions]
+# n must be >= 100 so the original programs write prime lists to files.
+set -e
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+n=${1:-100}
+repetitions=${2:-1}
+if ! [[ "$n" =~ ^[0-9]+$ && "$repetitions" =~ ^[0-9]+$ ]]; then
+    echo "Use integer n >= 100 and repetitions >= 1."
+    exit 1
+fi
+if ((n < 100 || repetitions < 1)); then
+    echo "Use n >= 100 and repetitions >= 1."
+    exit 1
+fi
+
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p "lab1_baselines_$SLURM_JOB_ID"
+cd "lab1_baselines_$SLURM_JOB_ID"
+echo "n=$n repetitions=$repetitions"
+echo "Nodes: $SLURM_JOB_NODELIST"
+echo "Allocated CPUs: $SLURM_CPUS_PER_TASK"
+
+# Input files supply scanf without changing the Week 4 code.
+printf '%s\n' "$n" > serial_input.txt
+for ((repeat = 1; repeat <= repetitions; repeat++))
+do
+    echo "=== Week 4 serial: repeat $repeat ==="
+    srun --ntasks=1 --cpus-per-task=1 --input=serial_input.txt ../lab1_serial > "serial_run_$repeat.txt"
+    cat "serial_run_$repeat.txt"
+
+    for threads in 1 2 4 8 16
+    do
+        printf '%s\n%s\n' "$n" "$threads" > openmp_input.txt
+        export OMP_NUM_THREADS=$threads
+        echo "=== Week 4 OpenMP: threads $threads, repeat $repeat ==="
+        srun --ntasks=1 --cpus-per-task="$threads" --input=openmp_input.txt ../lab1_openmp > "openmp_${threads}_run_$repeat.txt"
+        cat "openmp_${threads}_run_$repeat.txt"
+        diff task1_primelist.txt task3_primelist.txt
+        echo "PASS: serial and OpenMP prime lists match"
+    done
+done
+
+wc -l task1_primelist.txt task3_primelist.txt
+echo "Last prime in each file:"
+tail -n 1 task1_primelist.txt
+tail -n 1 task3_primelist.txt
+echo "Results folder: $PWD"

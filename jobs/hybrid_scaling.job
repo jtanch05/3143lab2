@@ -1,0 +1,53 @@
+#!/bin/bash
+#SBATCH --job-name=hybrid_scaling
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=4
+#SBATCH --partition=defq
+
+# Usage: sbatch hybrid_scaling.job 100 1
+# Then: sbatch hybrid_scaling.job 100000000 3
+# Sequential configurations, never more than 16 allocated CPUs.
+set -euo pipefail
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+n=${1:-100}
+repetitions=${2:-1}
+if ! [[ "$n" =~ ^[0-9]+$ && "$repetitions" =~ ^[0-9]+$ ]]; then
+    echo 'Use integer n >= 100 and repetitions >= 1.'; exit 1
+fi
+if (( n < 100 || repetitions < 1 )); then
+    echo 'Use n >= 100 and repetitions >= 1.'; exit 1
+fi
+cd "$SLURM_SUBMIT_DIR"
+mkdir "hybrid_scaling_${n}_${SLURM_JOB_ID}"
+cd "hybrid_scaling_${n}_${SLURM_JOB_ID}"
+echo "n=$n repetitions=$repetitions nodes=$SLURM_JOB_NODELIST"
+mpicc -O2 -fopenmp ../task2.c -lm -o task2
+sha256sum ../task2.c
+mpicc --version
+lscpu
+export OMP_DYNAMIC=FALSE
+# Cover process and thread changes plus 1x1 theoretical reference.
+for config in '1 1' '1 2' '1 4' '2 1' '2 2' '2 4' '4 1' '4 2' '4 4'
+do
+    read -r p t <<< "$config"
+    export OMP_NUM_THREADS=$t
+    for ((repeat=1; repeat<=repetitions; repeat++))
+    do
+        echo "=== hybrid p=$p t=$t repeat=$repeat ==="
+        srun --nodes=1 --ntasks="$p" --ntasks-per-node="$p" --cpus-per-task="$t" ./task2 "$n" "$t" > "hybrid_p${p}_t${t}_run_${repeat}.txt"
+        cat "hybrid_p${p}_t${t}_run_${repeat}.txt"
+        if [[ ! -f reference_primelist.txt ]]; then
+            cp task2_primelist.txt reference_primelist.txt
+        fi
+        diff reference_primelist.txt task2_primelist.txt
+        echo 'PASS: output matches first configuration'
+        sha256sum task2_primelist.txt
+    done
+done
+wc -l reference_primelist.txt task2_primelist.txt
+tail -n 1 task2_primelist.txt
+echo "Results folder: $PWD"

@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=task1_compare
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=2
+#SBATCH --partition=defq
+
+# Usage: sbatch task1_compare.job [n] [repetitions]
+# Defaults run the small correctness check once.
+set -e
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+n=${1:-100}
+repetitions=${2:-1}
+
+# Each submission has its own results folder, preserving previous runs.
+cd "$SLURM_SUBMIT_DIR"
+mkdir -p "task1_compare_$SLURM_JOB_ID"
+cd "task1_compare_$SLURM_JOB_ID"
+
+echo "n=$n repetitions=$repetitions"
+echo "Nodes: $SLURM_JOB_NODELIST"
+echo "MPI processes: $SLURM_NTASKS; CPUs per process: $SLURM_CPUS_PER_TASK"
+
+for ((repeat = 1; repeat <= repetitions; repeat++))
+do
+    echo "=== task1: repeat $repeat ==="
+    srun "../task1" "$n" > "task1_run_$repeat.txt"
+    cat "task1_run_$repeat.txt"
+
+    echo "=== task1_block: repeat $repeat ==="
+    srun "../task1_block" "$n" > "task1_block_run_$repeat.txt"
+    cat "task1_block_run_$repeat.txt"
+
+    diff task1_primelist.txt task1_block_primelist.txt
+    echo "PASS: all variant prime lists match for repeat $repeat"
+done
+
+wc -l task1_primelist.txt task1_block_primelist.txt
+echo "Last prime in each file:"
+tail -n 1 task1_primelist.txt
+tail -n 1 task1_block_primelist.txt
+echo "Results folder: $PWD"

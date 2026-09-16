@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=lab2_dataset
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=4
+#SBATCH --partition=defq
+
+# Usage: sbatch dataset.job n repetitions
+# One input size per job, four implementations run sequentially.
+set -e
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+n=${1:-100}
+repetitions=${2:-1}
+if ! [[ "$n" =~ ^[0-9]+$ && "$repetitions" =~ ^[0-9]+$ ]]; then
+    echo "Use integer n >= 100 and repetitions >= 1."
+    exit 1
+fi
+if ((n < 100 || repetitions < 1)); then
+    echo "Use n >= 100 and repetitions >= 1."
+    exit 1
+fi
+
+cd "$SLURM_SUBMIT_DIR"
+mkdir "dataset_${n}_$SLURM_JOB_ID"
+cd "dataset_${n}_$SLURM_JOB_ID"
+echo "n=$n repetitions=$repetitions"
+echo "Nodes: $SLURM_JOB_NODELIST"
+echo "Serial: 1 CPU; OpenMP: 4 threads; MPI: 4 processes; hybrid: 4 processes x 4 threads"
+printf '%s\n' "$n" > serial_input.txt
+printf '%s\n4\n' "$n" > openmp_input.txt
+export OMP_NUM_THREADS=4
+
+for ((repeat = 1; repeat <= repetitions; repeat++))
+do
+    echo "=== Serial: repeat $repeat ==="
+    srun --ntasks=1 --cpus-per-task=1 --input=serial_input.txt ../lab1_serial > "serial_run_$repeat.txt"
+    cat "serial_run_$repeat.txt"
+    # Serial and MPI share an output filename. Preserve the serial reference.
+    mv task1_primelist.txt serial_primelist.txt
+
+    echo "=== OpenMP (4 threads): repeat $repeat ==="
+    srun --ntasks=1 --cpus-per-task=4 --input=openmp_input.txt ../lab1_openmp > "openmp_run_$repeat.txt"
+    cat "openmp_run_$repeat.txt"
+    diff serial_primelist.txt task3_primelist.txt
+
+    echo "=== MPI (4 processes): repeat $repeat ==="
+    srun --ntasks=4 --cpus-per-task=1 ../task1 "$n" > "mpi_run_$repeat.txt"
+    cat "mpi_run_$repeat.txt"
+    diff serial_primelist.txt task1_primelist.txt
+
+    echo "=== Hybrid (4 x 4): repeat $repeat ==="
+    srun --ntasks=4 --cpus-per-task=4 ../task2 "$n" 4 > "hybrid_run_$repeat.txt"
+    cat "hybrid_run_$repeat.txt"
+    diff serial_primelist.txt task2_primelist.txt
+
+    echo "PASS: all four prime lists match for repeat $repeat"
+    wc -l serial_primelist.txt
+    tail -n 1 serial_primelist.txt
+    # Record hashes, then discard ONLY generated lists in this job directory.
+    # Retaining four large lists for 30 inputs would exceed the home quota.
+    sha256sum serial_primelist.txt task3_primelist.txt task1_primelist.txt task2_primelist.txt > "prime_hashes_$repeat.txt"
+    rm -- serial_primelist.txt task3_primelist.txt task1_primelist.txt task2_primelist.txt
+done
+echo "Results folder: $PWD"

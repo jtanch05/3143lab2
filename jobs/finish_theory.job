@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --job-name=lab2_theory_inputs
+#SBATCH --time=00:10:00
+#SBATCH --mem=4G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=defq
+# Three consecutive input sizes per job. n_start, number_of_sizes, repetitions.
+set -euo pipefail
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+first=${1:-100}; sizes=${2:-1}; reps=${3:-1}
+[[ "$first" =~ ^[0-9]+$ && "$sizes" =~ ^[0-9]+$ && "$reps" =~ ^[0-9]+$ ]] || exit 1
+((first>=100 && sizes>=1 && sizes<=3 && reps>=1)) || exit 1
+cd "$SLURM_SUBMIT_DIR"
+mkdir "finish_theory_${first}_${SLURM_JOB_ID}"
+cd "finish_theory_${first}_${SLURM_JOB_ID}"
+mpicc -O2 ../task1.c -lm -o task1
+mpicc -O2 -fopenmp ../task2.c -lm -o task2
+sha256sum ../task1.c ../task2.c
+srun -N1 -n1 -c1 bash -c 'hostname; lscpu; gcc --version'
+export OMP_DYNAMIC=FALSE
+for ((i=0; i<sizes; i++)); do
+    n=$((first+i*1000000))
+    for ((repeat=1; repeat<=reps; repeat++)); do
+        srun -N1 -n1 -c1 ./task1 "$n" > "mpi_n${n}_run_${repeat}.txt"
+        srun -N1 -n1 -c1 ./task2 "$n" 1 > "hybrid_n${n}_run_${repeat}.txt"
+        diff task1_primelist.txt task2_primelist.txt
+        sha256sum task1_primelist.txt task2_primelist.txt > "hashes_n${n}_run_${repeat}.txt"
+        wc -l task1_primelist.txt
+        tail -n1 task1_primelist.txt
+        echo "PASS: n=$n repeat=$repeat"
+    done
+done
+# The fixed filenames retain the last input's actual outputs; hashes retain all checks.
+echo "Results folder: $PWD"

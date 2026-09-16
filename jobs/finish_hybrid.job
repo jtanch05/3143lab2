@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=lab2_finish_hybrid
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=defq
+# p is supplied through sbatch --ntasks=p --cpus-per-task=16/p.
+# Usage: sbatch finish_hybrid.job 100 1
+set -euo pipefail
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+n=${1:-100}; repetitions=${2:-1}
+[[ "$n" =~ ^[0-9]+$ && "$repetitions" =~ ^[0-9]+$ ]] || exit 1
+((n >= 100 && repetitions >= 1)) || exit 1
+p=$SLURM_NTASKS; max_t=$SLURM_CPUS_PER_TASK
+cd "$SLURM_SUBMIT_DIR"
+mkdir "finish_hybrid_${n}_p${p}_${SLURM_JOB_ID}"
+cd "finish_hybrid_${n}_p${p}_${SLURM_JOB_ID}"
+echo "n=$n p=$p max_t=$max_t repeats=$repetitions nodes=$SLURM_JOB_NODELIST"
+mpicc -O2 -fopenmp ../task2.c -lm -o task2
+mpicc -O2 ../task1.c -lm -o task1
+gcc -O2 ../lab1_serial.c -lm -o serial
+sha256sum ../task1.c ../task2.c ../lab1_serial.c ../lab1_openmp.c
+srun --nodes=1 --ntasks=1 --cpus-per-task=1 bash -c 'hostname; lscpu; gcc --version'
+export OMP_DYNAMIC=FALSE
+printf '%s\n' "$n" > serial_input.txt
+for ((repeat=1; repeat<=repetitions; repeat++)); do
+    srun -N1 -n1 -c1 --input=serial_input.txt ./serial > "serial_run_${repeat}.txt"
+    mv task1_primelist.txt reference_primelist.txt
+    srun -N1 -n"$p" -c1 ./task1 "$n" > "mpi_run_${repeat}.txt"
+    diff reference_primelist.txt task1_primelist.txt
+    for ((t=1; t<=max_t; t*=2)); do
+        srun -N1 -n"$p" --ntasks-per-node="$p" -c"$t" ./task2 "$n" "$t" > "hybrid_p${p}_t${t}_run_${repeat}.txt"
+        diff reference_primelist.txt task2_primelist.txt
+        sha256sum reference_primelist.txt task1_primelist.txt task2_primelist.txt > "hashes_t${t}_run_${repeat}.txt"
+        echo "PASS: p=$p t=$t repeat=$repeat"
+    done
+done
+wc -l reference_primelist.txt task2_primelist.txt
+tail -n1 task2_primelist.txt
+echo "Results folder: $PWD"

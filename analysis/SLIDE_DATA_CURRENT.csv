@@ -1,0 +1,29 @@
+figure,series,n,mpi_processes,threads_per_process,total_workers,overall_median_seconds,speedup_vs_serial,notes
+workload_task1,Cyclic,100000000,4,1,4,3.922206,3.29634,Selected final Task 1 distribution
+workload_task1,Block,100000000,4,1,4,4.726977,2.73514,Alternative distribution
+workload_task2,Dynamic64,100000000,4,1,4,3.930754,3.28917,One thread has no useful OpenMP balancing
+workload_task2,Static,100000000,4,1,4,3.896378,3.31819,Static marginally faster with one thread
+workload_task2,Dynamic64,100000000,4,2,8,2.416699,5.34983,Selected schedule faster with multiple threads
+workload_task2,Static,100000000,4,2,8,2.726167,4.74253,Alternative schedule
+workload_task2,Dynamic64,100000000,4,4,16,1.798036,7.19058,Selected final Task 2 schedule
+workload_task2,Static,100000000,4,4,16,1.962138,6.58920,Alternative schedule
+graph3,MPI cyclic,100000000,1,1,1,13.239176,0.97657,Equal-worker process scaling
+graph3,MPI cyclic,100000000,2,1,2,7.012439,1.84371,Equal-worker process scaling
+graph3,MPI cyclic,100000000,4,1,4,3.922206,3.29634,Equal-worker process scaling
+graph3,MPI cyclic,100000000,8,1,8,2.486940,5.19873,Equal-worker process scaling
+graph3,MPI cyclic,100000000,16,1,16,1.677054,7.70931,Equal-worker process scaling
+graph3,OpenMP,100000000,1,1,1,13.048655,0.99082,Equal-worker thread scaling
+graph3,OpenMP,100000000,1,2,2,6.838205,1.89069,Equal-worker thread scaling
+graph3,OpenMP,100000000,1,4,4,3.702183,3.49224,Equal-worker thread scaling
+graph3,OpenMP,100000000,1,8,8,2.132696,6.06224,Equal-worker thread scaling
+graph3,OpenMP,100000000,1,16,16,1.377939,9.38280,Equal-worker thread scaling
+graph4,Task 1 MPI,100000000,4,1,4,3.922206,3.29634,Fixed four MPI processes
+graph4,Hybrid dynamic64,100000000,4,1,4,3.930754,3.28917,Fixed four MPI processes
+graph4,Hybrid dynamic64,100000000,4,2,8,2.416699,5.34983,Fixed four MPI processes
+graph4,Hybrid dynamic64,100000000,4,4,16,1.798036,7.19058,Fixed four MPI processes
+graph5,OpenMP,100000000,1,4,4,3.702183,3.49224,Matched total worker count
+graph5,Hybrid dynamic64,100000000,4,1,4,3.930754,3.28917,Matched total worker count
+graph5,OpenMP,100000000,1,8,8,2.132696,6.06224,Matched total worker count
+graph5,Hybrid dynamic64,100000000,4,2,8,2.416699,5.34983,Matched total worker count
+graph5,OpenMP,100000000,1,16,16,1.377939,9.38280,Matched total worker count
+graph5,Hybrid dynamic64,100000000,4,4,16,1.798036,7.19058,Matched total worker count
