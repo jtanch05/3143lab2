@@ -1,52 +1,63 @@
 # Theory worksheet
 
-Status: Task 1 reference model calculated. Task 2 model awaits a hybrid 1-process, 1-thread run. These are modelling assumptions to explain during the presentation, not claims of optimality.
+Status: The communication-aware Week 7 Amdahl model and the 30-input theory sweep are complete. These are modelling assumptions to explain during the presentation, not claims of optimality.
 
 ## Measured baseline and calculation
 
-All empirical speedups use the median Week 4 serial overall time at the same n. At n = 100,000,000 this is 12.928922 seconds, from job 129504.
+All empirical speedups use the median Week 4 serial overall time at the same n. At n = 100,000,000, the serial median is 12.928922 seconds and serial computation median is 12.485802 seconds, from job 129504. The serial residual is therefore 0.443120 seconds.
 
-For Task 1, job 129144 runs the actual MPI program with one process. This gives a useful way to measure its parallel candidate-testing loop without dividing an already-parallel time again:
-
-| Repeat | Overall T1 (s) | Candidate loop C1 (s) | Residual T1-C1 (s) | Residual / T1 |
-| --- | ---: | ---: | ---: | ---: |
-| 1 | 13.220626 | 12.500321 | 0.720305 | 0.054483 |
-| 2 | 13.239176 | 12.500669 | 0.738507 | 0.055782 |
-| 3 | 13.313472 | 12.521834 | 0.791638 | 0.059461 |
-
-Use median T1 = 13.239176 s and median fraction f = 0.055781946. The idealized fixed-work Amdahl model is:
+The model follows the Week 7 extra-class MPI example. For every target process count `p`, use the target configuration's median measured MPI communication and blocking time `K(p)`. Define:
 
 ```text
-T_model(p) = T1 * [f + (1-f)/p]
-S_model_own_baseline(p) = 1 / [f + (1-f)/p]
-S_model_Week4(p) = 12.928922 / T_model(p)
+T_reference(p) = T_serial + K(p)
+rp(p) = C_serial / T_reference(p)
+x(p) = K(p) / T_reference(p)
+rs(p) = 1 - rp(p) - x(p)
+
+T_predicted(p) = (T_serial - C_serial) + C_serial/p + K(p)
+S_class(p) = 1 / [rs(p) + rp(p)/p + x(p)] = T_reference(p) / T_predicted(p)
+S_model_Week4(p) = T_serial / T_predicted(p)
+                  = [T_serial / T_reference(p)] * S_class(p)
 S_empirical_Week4(p) = 12.928922 / median(measured MPI overall time at p)
 ```
 
-The Week 4 conversion matters because MPI(1) is slower than the Week 4 serial program. Without it, the two plotted speedups use different denominators. Both plotted curves start around 0.977 at p=1.
+`S_class` uses the communication-augmented reference time taught in class. The plotted theoretical speedup uses the Week 4 serial numerator so it has the same baseline as empirical speedup, as required by the assessment. The two expressions use the same predicted runtime.
 
-| Processes | Amdahl reference vs Week 4 | Empirical vs Week 4 |
-| ---: | ---: | ---: |
-| 1 | 0.977 | 0.977 |
-| 2 | 1.850 | 1.844 |
-| 4 | 3.346 | 3.296 |
-| 8 | 5.619 | 5.199 |
-| 16 | 8.507 | 7.709 |
+| Processes | K(p) measured (s) | Class Amdahl | Model vs Week 4 | Empirical vs Week 4 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.000000 | 1.000 | 1.000 | 0.977 |
+| 2 | 0.010483 | 1.932 | 1.931 | 1.844 |
+| 4 | 0.007372 | 3.622 | 3.620 | 3.296 |
+| 8 | 0.008905 | 6.428 | 6.424 | 5.199 |
+| 16 | 0.019889 | 10.414 | 10.398 | 7.709 |
 
-Sources and full-precision values are in `prepared/theory_mpi_measurements.csv` and `prepared/theory_mpi_curve.csv`. The generated Graph 6 is labelled a draft model for review.
+Sources and full-precision values are in `prepared/theory_mpi_measurements.csv` and `prepared/theory_mpi_curve.csv`. The final figure is `prepared/graph6.png` (also PDF).
 
 ## What this assumes
 
-The candidate-testing loop scales ideally. The residual (preparation, local overhead, one-process collectives, sorting and output) stays constant. This is an effective nonparallel fraction for this implementation and input, not an immutable property of prime search. Additional communication with more MPI processes is not included. Sorting/output costs and memory behaviour may also change. Thus the measured curve can differ from this reference.
+The serial candidate-testing loop scales ideally in this reference. The model retains the measured Week 4 serial residual and adds the measured MPI communication and blocking term for each configuration. Sorting/output costs, waiting behaviour and memory effects can still change with process count, so the measured curve can differ from this reference.
 
 The MPI timer starts after MPI_Init and stops before the reporting collectives and MPI_Finalize. Week 4 starts its timer after input. Explain these boundaries when comparing implementations. Slurm queue time is outside every benchmark timer.
 
-Class references: Workshop 7 slides 5 and 11-13, Topic 7A, and the Week 7 extra-class worked example. The class also discusses a communication-aware extension. Our simple reference explicitly leaves changing communication overhead unmodelled. To add an overhead term, establish non-overlapping measurements and consistent normalization first. Summing maximum phase times from different ranks can double-count waiting and does not reconstruct a sequential execution time.
+Class references: Workshop 7 slides 5 and 11-13, Topic 7A, and the Week 7 extra-class worked example. Our `K(p)` term is the program's reported maximum MPI communication time and includes blocking waits. It is therefore a communication-and-waiting term, not a pure network-transfer measurement. Summing maximum phase times from different ranks can double-count waiting and does not reconstruct a sequential execution time.
 
-## Task 2 pending calculation
+## Task 2 completed calculation
 
-Current implementation plan: `finish_hybrid.job` and `finish_theory.job`, described in `FINISH_RUNBOOK.md`, supersede the earlier limited `hybrid_scaling.job`. `complete_analysis.py` generates Graphs 5/7 and the input-size theory appendix once those measured reports are downloaded. Existing Task 1 Graph 6 remains a valid idealized reference under the stated assumptions, not a communication-aware prediction.
+Task 2 uses the same Week 4 serial baseline, with a separate measured communication-and-waiting term for every `p x t` layout:
 
-`hybrid_scaling.job` collects a 1 x 1 reference plus a 1/2/4 MPI by 1/2/4 thread matrix. Once available, use the actual hybrid one-worker candidate-loop timing and overall time to construct an analogous reference. Label a model using workers=p*t as an approximation: local collection, replicated preparation and MPI communication react differently to changes in p and t.
+```text
+T_predicted(p,t) = (T_serial - C_serial) + C_serial/(p*t) + K(p,t)
+S_model_Week4(p,t) = T_serial / T_predicted(p,t)
+```
+
+At 16 workers, the model ranges from 9.62x to 10.53x because measured communication differs by layout. The five measured layouts range from 6.836370x to 7.553533x. Their observed ranges overlap, so the lowest median (2x8) does not establish statistical superiority. Graphs 5 and 7 use all 15 configurations in jobs 134608-134612. Graph 4 uses the p=4 subset and the MPI-only runs in job 134610. Full values: `prepared/hybrid_completed.csv`, `prepared/finish_hybrid_raw.csv` and `prepared/graph4_reference.csv`.
+
+Using workers=p*t is an approximation: local collection, replicated preparation and MPI communication react differently to changes in p and t. The model treats the Week 4 candidate-testing loop as scalable work. It does not claim every remaining instruction is globally serial.
 
 Compare measured configurations with the reference at their total worker count, keep the p x t labels, and discuss differences between configurations with equal total workers. Do not use Task 1's fraction as a measured Task 2 fraction.
+
+## Input-size theory
+
+Jobs 134613-134622 provide MPI(1) and hybrid(1x1) correctness checks at all 30 inputs. For the theory curves, each input uses its matching Week 4 serial overall and computation medians plus the measured communication-and-waiting term from the original MPI(4) or hybrid(4x4) run. Results: `prepared/theory_input_sizes.csv` and `prepared/theory_baseline_raw.csv`. Figures: `appendix_theory_n_mpi` and `appendix_theory_n_hybrid`, PNG and PDF.
+
+The separate input-size and fixed-input scaling batches have distinct measurements. Do not silently mix their baseline values. Reproduce the complete graph set with `python complete_analysis.py`.

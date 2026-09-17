@@ -1,5 +1,7 @@
 # MPI and hybrid prime search
 
+> Superseded on 17 September 2026 by `READY_TO_PASTE_SLIDES.md`. That file contains the completed seven-graph slide content, updated Graph 4 figures, hybrid theory, speaker notes and appendices. The earlier working draft below is retained for history and must not be pasted as the final version.
+
 Working slide copy and speaker notes. Target: 6 minutes 40 seconds. Names, student IDs and Monash emails: [complete for both presenters]. Pending panels must be completed before the final presentation.
 
 ## 1. Objective (15 seconds)

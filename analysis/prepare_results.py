@@ -26,10 +26,13 @@ def read_run(path):
     text = path.read_text()
     overall = value(text, r'(?:Overall time[^\n]*?|Total time[^\n]*?): ([\d.]+) seconds')
     compute = value(text, r'(?:Parallel computation time \(max process\)|Computation time): ([\d.]+) seconds')
+    communication_match = re.search(r'MPI communication time \(broadcast \+ gather \+ gatherv, max process\): ([\d.]+) seconds', text)
     count = int(value(text, r'Prime numbers found: (\d+)'))
     ranks = [float(t) for _, t in re.findall(r'Process (\d+) computation time: ([\d.]+)', text)]
     return {'source': str(path.relative_to(ROOT)), 'overall': overall,
-            'compute': compute, 'count': count, 'ranks': ranks}
+            'compute': compute,
+            'communication': float(communication_match[1]) if communication_match else None,
+            'count': count, 'ranks': ranks}
 
 def runs(folder, prefix):
     result = [read_run(p) for p in sorted((ROOT / folder).glob(prefix + '_run_*.txt'))]
@@ -136,31 +139,47 @@ plt.legend()
 save('graph5_partial', 'PARTIAL: hybrid and OpenMP at equal worker counts', 'Speedup against Week 4 serial',
      'n = 100 million. Process count remains 4 here.\nAdditional MPI-process configurations are required to complete Graph 5.')
 
-# Amdahl worksheet: one-process MPI phase boundaries isolate the parallel loop.
-# Normalization explicitly distinguishes the MPI program baseline from Week 4.
+# Communication-aware Amdahl model following the Week 7 extra-class example.
+# Start with the Week 4 serial program, then add the measured MPI communication
+# and blocking time for each target process count.  The predicted runtime is
+# equivalent to the fraction form 1 / [rs + rp/p + x(p)].
+serial_compute = median(r['compute'] for r in serial)
+serial_residual = baseline - serial_compute
 theory = []
-for r in mpi[1]:
-    theory.append(dict(source=r['source'], one_process_overall_s=r['overall'],
-                       parallel_loop_s=r['compute'], residual_s=r['overall']-r['compute'],
-                       serial_fraction=(r['overall']-r['compute'])/r['overall']))
+curves = []
+for p in workers:
+    communication = 0.0 if p == 1 else median(r['communication'] for r in mpi[p])
+    reference = baseline + communication
+    rp = serial_compute / reference
+    x = communication / reference
+    rs = 1 - rp - x
+    predicted = serial_residual + serial_compute/p + communication
+    class_speedup = 1 / (rs + rp/p + x)
+    theory.append(dict(processes=p, serial_overall_s=baseline,
+                       serial_computation_s=serial_compute,
+                       serial_residual_s=serial_residual,
+                       communication_blocking_s=communication,
+                       reference_s=reference, rp=rp, rs=rs, x=x,
+                       predicted_overall_s=predicted,
+                       class_speedup=class_speedup))
+    curves.append(dict(processes=p, rp=rp, rs=rs, x=x,
+                       communication_blocking_s=communication,
+                       predicted_overall_s=predicted,
+                       class_speedup=class_speedup,
+                       model_week4_baseline=baseline/predicted,
+                       empirical_week4_baseline=baseline/median(r['overall'] for r in mpi[p])))
 csv_file('theory_mpi_measurements.csv', theory)
-f = median(r['serial_fraction'] for r in theory)
-t1 = median(r['overall'] for r in mpi[1])
-curves = [dict(processes=p, measured_serial_fraction=f,
-               model_own_baseline=1/(f+(1-f)/p),
-               model_week4_baseline=(baseline/t1)/(f+(1-f)/p),
-               empirical_week4_baseline=baseline/median(r['overall'] for r in mpi[p])) for p in workers]
 csv_file('theory_mpi_curve.csv', curves)
 plt.figure()
 plt.plot(workers, [r['empirical_week4_baseline'] for r in curves], 'o-', label='Measured MPI')
-plt.plot(workers, [r['model_week4_baseline'] for r in curves], 's--', label='Amdahl reference (fixed residual)')
+plt.plot(workers, [r['model_week4_baseline'] for r in curves], 's--', label='Amdahl prediction (Week 4 baseline)')
 plt.xticks(workers)
 plt.xlabel('MPI processes')
 plt.legend()
-save('graph6_model_draft', 'DRAFT MODEL: MPI empirical and Amdahl speedup', 'Speedup against Week 4 serial',
-     'n = 100 million; f = %.5f from MPI(1) timing. Normalized to Week 4 serial.\nAssumes constant residual and ideal loop scaling; additional MPI overhead is unmodelled.' % f)
-print(f'Serial median: {baseline:.6f}s; MPI(1): {t1:.6f}s; MPI serial fraction: {f:.6f}')
-print('Generated balance charts, Graphs 3/4, partial Graph 5, draft Graph 6 and source CSVs in', OUT)
+save('graph6', 'MPI empirical and Amdahl speedup', 'Speedup against Week 4 serial',
+     'n = 100 million; serial computation is divided across p processes.\nCommunication term is the median measured MPI communication and blocking time at each p.')
+print(f'Serial median: {baseline:.6f}s; serial computation: {serial_compute:.6f}s; serial residual: {serial_residual:.6f}s')
+print('Generated balance charts, Graphs 3/4/6, legacy partial Graph 5 and source CSVs in', OUT)
 
 # Validate and plot the downloaded 30-input sweep when it is present.
 dataset_folders = sorted(ROOT.glob('dataset_*_*'))
